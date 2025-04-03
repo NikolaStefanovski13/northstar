@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NorthStar - Create Car Carrier Route</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <!-- Geocoding API -->
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'brand-blue': {
+              light: '#3b82f6',
+              DEFAULT: '#2563eb',
+              dark: '#1d4ed8'
+            },
+            'brand-slate': {
+              light: '#f8fafc',
+              DEFAULT: '#f1f5f9',
+              dark: '#e2e8f0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #f1f5f9;
+    }
+    .northstar-header {
+      background: linear-gradient(to right, #2563eb, #1d4ed8);
+      color: white;
+    }
+    .northstar-btn {
+      transition: all 0.2s ease;
+    }
+    .northstar-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .truck-icon {
+      animation: truck-movement 1s infinite alternate;
+    }
+    @keyframes truck-movement {
+      from { transform: translateY(0px); }
+      to { transform: translateY(-3px); }
+    }
+    .capacity-gauge {
+      position: relative;
+      height: 8px;
+      background-color: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .capacity-gauge-fill {
+      height: 100%;
+      background: linear-gradient(to right, #10b981, #3b82f6);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    #map {
+      height: 400px;
+      z-index: 1;
+    }
+    .stop-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      color: white;
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .pickup-badge {
+      background-color: #10b981;
+    }
+    .delivery-badge {
+      background-color: #ef4444;
+    }
+    .feature-icon {
+      background-color: rgba(37, 99, 235, 0.1);
+      border-radius: 9999px;
+      padding: 0.5rem;
+      color: #2563eb;
+    }
+    .timeline-line {
+      position: absolute;
+      left: 11px;
+      top: 22px;
+      bottom: 0;
+      width: 2px;
+      background-color: #e2e8f0;
+      z-index: 0;
+    }
+    .timeline-item {
+      position: relative;
+      z-index: 1;
+    }
+    .drag-handle {
+      cursor: grab;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+    .order-card {
+      transition: background-color 0.2s ease;
+    }
+    .order-card.dragging {
+      background-color: #f8fafc;
+      border: 2px dashed #cbd5e1;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-brand-slate">
+  <header class="northstar-header p-4 shadow-md">
+    <div class="container mx-auto flex items-center justify-between">
+      <div class="flex items-center">
+        <svg class="h-8 w-8 mr-3" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor" />
+        </svg>
+        <h1 class="text-2xl font-bold">NorthStar</h1>
+      </div>
+      <div class="flex items-center">
+        <nav class="hidden md:flex items-center space-x-6">
+          <a href="index.html" class="text-white hover:text-blue-100 font-medium">Home</a>
+          <a href="dashboard.html" class="text-white hover:text-blue-100 font-medium">Dashboard</a>
+          <a href="create-route.html" class="text-white hover:text-blue-100 font-medium">Create Route</a>
+        </nav>
+        <!-- Mobile menu button -->
+        <button class="md:hidden text-white" id="mobileMenuButton">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <!-- Mobile menu (hidden by default) -->
+    <div class="md:hidden hidden" id="mobileMenu">
+      <div class="px-2 pt-2 pb-3 space-y-1">
+        <a href="index.html" class="block px-3 py-2 text-white font-medium hover:bg-blue-700 rounded-md">Home</a>
+        <a href="dashboard.html" class="block px-3 py-2 text-white font-medium hover:bg-blue-700 rounded-md">Dashboard</a>
+        <a href="create-route.html" class="block px-3 py-2 text-white font-medium hover:bg-blue-700 rounded-md">Create Route</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto p-4 my-8">
+    <div class="bg-white rounded-lg shadow-sm p-6 max-w-6xl mx-auto">
+      <h2 class="text-xl font-semibold mb-6 text-gray-800">Create Car Carrier Route</h2>
+
+      <form id="routeForm" class="space-y-8">
+        <!-- Route Basics Section -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="md:col-span-2">
+            <label for="routeName" class="block text-sm font-medium text-gray-700 mb-1">Route Name</label>
+            <input type="text" id="routeName" name="routeName" required
+                  class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" 
+                  placeholder="Chicago to Detroit Route">
+          </div>
+          
+          <div>
+            <label for="driverSelect" class="block text-sm font-medium text-gray-700 mb-1">Driver Name</label>
+            <input type="text" id="driverName" name="driverName" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" placeholder="Enter driver name">
+          </div>
+        </div>
+
+        <!-- Vehicle Orders Section -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+              <h3 class="text-lg font-medium text-gray-800">Vehicle Orders</h3>
+              <div class="flex space-x-3">
+                <select id="routePreference" class="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:ring-brand-blue focus:border-brand-blue">
+                  <option value="efficient">Most Efficient</option>
+                  <option value="pickupFirst">Pickups First</option>
+                  <option value="deliveryFirst">Deliveries First</option>
+                  <option value="custom">Custom Order</option>
+                </select>
+                <button type="button" id="optimizeRouteBtn" class="bg-brand-blue text-white px-4 py-1.5 rounded-md shadow-sm northstar-btn text-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Optimize Route
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div id="vehicleOrdersContainer" class="p-4 divide-y divide-gray-200">
+            <!-- Vehicle orders will be dynamically added here -->
+            <div id="emptyOrdersMessage" class="py-6 text-center text-gray-500">
+              No vehicle orders added yet. Click "Add Vehicle Order" to get started.
+            </div>
+          </div>
+          
+          <div class="bg-gray-50 px-6 py-4 border-t border-gray-200">
+            <button type="button" id="addVehicleOrderBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm northstar-btn flex items-center mx-auto">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Vehicle Order
+            </button>
+          </div>
+        </div>
+
+        <!-- Financial Summary -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-800">Financial Summary</h3>
+          </div>
+          
+          <div class="p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div class="bg-brand-slate-light p-4 rounded-lg">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Revenue</h4>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span class="text-gray-600">Total:</span>
+                    <span id="totalRevenue" class="font-medium ml-1">$0.00</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Per Mile:</span>
+                    <span id="revenuePerMile" class="font-medium ml-1">$0.00</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Vehicle Count:</span>
+                    <span id="totalVehicles" class="font-medium ml-1">0</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-brand-slate-light p-4 rounded-lg">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Distance</h4>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span class="text-gray-600">Total Distance:</span>
+                    <span id="totalDistance" class="font-medium ml-1">0 miles</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Total Stops:</span>
+                    <span id="totalStops" class="font-medium ml-1">0</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-600">Estimated Time:</span>
+                    <span id="totalDuration" class="font-medium ml-1">0 min</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="bg-brand-slate-light p-4 rounded-lg">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Driver Notes</h4>
+                <textarea id="notes" name="notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue text-sm" 
+                          placeholder="Special instructions, access codes, or other information..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Map Section -->
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-800">Route Preview</h3>
+          </div>
+          
+          <div class="p-4">
+            <div id="map" class="rounded-lg shadow-sm mb-4"></div>
+            
+            <!-- Route Timeline -->
+            <h4 class="text-sm font-medium text-gray-700 mb-3">Route Timeline</h4>
+            <div class="relative pb-4" id="routeTimeline">
+              <div class="timeline-line"></div>
+              <div id="emptyTimelineMessage" class="text-center text-gray-500 text-sm py-3">
+                Add vehicle orders to generate route timeline
+              </div>
+              <!-- Timeline items will be added here dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="pt-4">
+          <button type="submit" class="w-full bg-brand-blue hover:bg-brand-blue-dark text-white font-medium py-3 px-4 rounded-md shadow-sm northstar-btn flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            Create Route
+          </button>
+        </div>
+      </form>
+
+      <!-- Results will show here after form submission -->
+      <div id="routeResults" class="mt-8 hidden">
+        <div class="border-t border-gray-200 pt-6">
+          <h3 class="text-lg font-semibold mb-4">Route Created Successfully</h3>
+          
+          <div class="bg-brand-slate-light p-4 rounded-md mb-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm font-medium text-gray-700">Share with Driver:</span>
+              <button id="copyLink" class="text-brand-blue hover:text-brand-blue-dark text-sm font-medium">Copy Link</button>
+            </div>
+            <input type="text" id="shareLink" readonly 
+                  class="w-full px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-500">
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Route Details Summary -->
+            <div class="bg-white p-4 rounded-md border border-gray-200">
+              <h4 class="text-sm font-medium text-gray-700 mb-2">Route Details:</h4>
+              <div class="space-y-2">
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Total Distance:</span>
+                  <span id="routeDistance" class="font-medium">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Estimated Time:</span>
+                  <span id="routeTime" class="font-medium">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Total Vehicles:</span>
+                  <span id="routeVehicles" class="font-medium">-</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Route Expires:</span>
+                  <span id="routeExpires" class="font-medium">-</span>
+                </div>
+              </div>
+              <div class="mt-3 pt-3 border-t border-gray-200">
+                <div class="flex space-x-2">
+                  <button id="viewRouteBtn" class="bg-brand-blue hover:bg-brand-blue-dark text-white px-3 py-1 rounded text-sm flex-1 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    View Route
+                  </button>
+                  <button id="editRouteBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm flex-1 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Route
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Financial Summary -->
+            <div class="bg-white p-4 rounded-md border border-gray-200">
+              <h4 class="text-sm font-medium text-gray-700 mb-2">Financial Summary:</h4>
+              <div class="space-y-2">
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Total Revenue:</span>
+                  <span id="summaryRevenue" class="font-medium">$0.00</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Revenue Per Mile:</span>
+                  <span id="summaryRevenuePerMile" class="font-medium">$0.00/mile</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-sm text-gray-600">Vehicle Count:</span>
+                  <span id="summaryVehicleCount" class="font-medium">0</span>
+                </div>
+              </div>
+              <div class="mt-3 pt-3 border-t border-gray-200">
+                <a href="dashboard.html" class="w-full bg-brand-blue hover:bg-brand-blue-dark text-white px-3 py-2 rounded text-sm flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Back to Dashboard
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-gray-800 text-white p-6 mt-auto">
+    <div class="container mx-auto">
+      <div class="flex flex-col md:flex-row justify-between items-center">
+        <div class="mb-4 md:mb-0">
+          <div class="flex items-center">
+            <svg class="h-6 w-6 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor" />
+            </svg>
+            <span class="font-semibold">North Star</span>
+          </div>
+          <p class="text-sm text-gray-400 mt-1">The Car Carrier Navigator's Choice</p>
+        </div>
+        <div>
+          <p class="text-sm text-gray-400">&copy; 2025 NorthStar - Car Carrier Edition. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Templates -->
+  <!-- Vehicle Order Template -->
+  <template id="vehicleOrderTemplate">
+    <div class="order-card bg-white rounded-lg shadow-sm overflow-hidden mb-4">
+      <div class="px-4 py-3 bg-gray-50 flex justify-between items-center cursor-pointer order-header">
+        <div class="flex items-center">
+          <div class="drag-handle mr-2 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+            </svg>
+          </div>
+          <span class="order-number font-medium mr-2">Order #1</span>
+          <span class="order-summary text-gray-600 text-sm"></span>
+        </div>
+        <div class="flex items-center">
+          <button type="button" class="toggle-order-btn text-gray-400 hover:text-gray-700 mr-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <button type="button" class="remove-order-btn text-gray-400 hover:text-red-500">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="order-details p-4 border-t border-gray-200">
+        <!-- Locations Section -->
+        <div class="mb-4">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-sm font-medium text-gray-700">Pickup Locations</h4>
+            <button type="button" class="add-pickup-btn text-sm text-brand-blue hover:text-brand-blue-dark flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Pickup
+            </button>
+          </div>
+          <div class="pickup-locations space-y-2">
+            <div class="pickup-location-item">
+              <div class="relative">
+                <input type="text" class="pickup-location w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" placeholder="Enter pickup address" required>
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <button type="button" class="remove-location-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-red-500 hidden">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-sm font-medium text-gray-700">Delivery Locations</h4>
+            <button type="button" class="add-delivery-btn text-sm text-brand-blue hover:text-brand-blue-dark flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Delivery
+            </button>
+          </div>
+          <div class="delivery-locations space-y-2">
+            <div class="delivery-location-item">
+              <div class="relative">
+                <input type="text" class="delivery-location w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" placeholder="Enter delivery address" required>
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <button type="button" class="remove-location-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-red-500 hidden">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Year/Make/Model</label>
+                <input type="text" class="vehicle-model w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" placeholder="e.g. 2022 Honda Accord" required>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
+                <select class="vehicle-type w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue">
+                  <option value="sedan">Sedan</option>
+                  <option value="suv">SUV</option>
+                  <option value="truck">Truck</option>
+                  <option value="van">Van</option>
+                  <option value="convertible">Convertible</option>
+                  <option value="luxury">Luxury</option>
+                  <option value="exotic">Exotic</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span class="text-gray-500">$</span>
+                  </div>
+                  <input type="number" min="0" step="0.01" class="vehicle-price w-full pl-7 pr-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" placeholder="Enter price" required>
+                </div>
+              </div>
+            </div>
+            
+            <div class="mt-4">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Special Instructions (Optional)</label>
+              <textarea class="vehicle-instructions w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" rows="2" placeholder="Access codes, contact info, vehicle condition, etc."></textarea>
+            </div>
+          </div>
+        </div>
+      </template>
+      
+      <!-- Add Location Item Template -->
+      <template id="locationItemTemplate">
+        <div class="location-item mt-2">
+          <div class="relative">
+            <input type="text" class="location-input w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md focus:ring-brand-blue focus:border-brand-blue" placeholder="Enter address" required>
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <button type="button" class="remove-location-btn absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </template>
+      
+      <!-- Route Stop Template -->
+      <template id="routeStopTemplate">
+        <div class="timeline-item flex items-start pb-6">
+          <div class="flex-none relative">
+            <span class="stop-badge pickup-badge flex items-center justify-center">P</span>
+          </div>
+          <div class="ml-4 flex-grow">
+            <div class="flex justify-between">
+              <div>
+                <p class="font-medium stop-address text-gray-800">123 Main St, Chicago, IL</p>
+                <p class="text-sm text-gray-500 stop-details">Pickup: 2022 Honda Accord</p>
+              </div>
+              <div class="flex items-center">
+                <span class="text-sm text-gray-500 stop-sequence mr-2">Stop #1</span>
+                <div class="flex space-x-1">
+                  <button type="button" class="move-up-btn p-1 text-gray-400 hover:text-gray-700 rounded">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button type="button" class="move-down-btn p-1 text-gray-400 hover:text-gray-700 rounded">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="mt-1 flex items-center">
+              <div class="flex space-x-2">
+                <a href="#" class="text-xs text-brand-blue hover:text-brand-blue-dark google-maps-link">Google Maps</a>
+                <a href="#" class="text-xs text-brand-blue hover:text-brand-blue-dark apple-maps-link">Apple Maps</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    
+      <!-- Leaflet JS -->
+      <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+      
+      <!-- Sortable.js for drag-and-drop functionality -->
+      <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+      
+      <!-- NorthStar App JS -->
+      <script src="js/map-integration.js"></script>
+      <script>
+        // js/route-builder.js
+        // Core functionality for the route builder page
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize variables
+            let orderCount = 0;
+            let totalRevenue = 0;
+            let stops = [];
+            let vehicles = [];
+            
+            // DOM Elements
+            const routeForm = document.getElementById('routeForm');
+            const vehicleOrdersContainer = document.getElementById('vehicleOrdersContainer');
+            const addVehicleOrderBtn = document.getElementById('addVehicleOrderBtn');
+            const emptyOrdersMessage = document.getElementById('emptyOrdersMessage');
+            const routeTimeline = document.getElementById('routeTimeline');
+            const emptyTimelineMessage = document.getElementById('emptyTimelineMessage');
+            const optimizeRouteBtn = document.getElementById('optimizeRouteBtn');
+            const routePreference = document.getElementById('routePreference');
+            const driverSelect = document.getElementById('driverSelect');
+            
+            // Financial summary elements
+            const totalRevenueElement = document.getElementById('totalRevenue');
+            const revenuePerMileElement = document.getElementById('revenuePerMile');
+            const totalVehiclesElement = document.getElementById('totalVehicles');
+            const totalDistanceElement = document.getElementById('totalDistance');
+            const totalStopsElement = document.getElementById('totalStops');
+            const totalDurationElement = document.getElementById('totalDuration');
+            
+            // Results elements
+            const routeResults = document.getElementById('routeResults');
+            const shareLink = document.getElementById('shareLink');
+            const copyLinkBtn = document.getElementById('copyLink');
+            const routeDistance = document.getElementById('routeDistance');
+            const routeTime = document.getElementById('routeTime');
+            const routeVehicles = document.getElementById('routeVehicles');
+            const routeExpires = document.getElementById('routeExpires');
+            const summaryRevenue = document.getElementById('summaryRevenue');
+            const summaryRevenuePerMile = document.getElementById('summaryRevenuePerMile');
+            const summaryVehicleCount = document.getElementById('summaryVehicleCount');
+            
+            // Initialize map
+            let map;
+            let mapMarkers = [];
+            let mapRoute = null;
+            
+            initMap();
+            loadDrivers();
+            
+            // Add event listeners
+            addVehicleOrderBtn.addEventListener('click', addVehicleOrder);
+            optimizeRouteBtn.addEventListener('click', optimizeRoute);
+            routeForm.addEventListener('submit', handleFormSubmit);
+            copyLinkBtn.addEventListener('click', copyShareLink);
+            
+            // Initialize sortable for drag-and-drop reordering of vehicle orders
+            new Sortable(vehicleOrdersContainer, {
+                animation: 150,
+                handle: '.drag-handle',
+                ghostClass: 'bg-gray-50',
+                onEnd: function() {
+                    renumberOrders();
+                    updateTimeline();
+                    updateMapRoute();
+                }
+            });
+            
+            /**
+             * Add a new vehicle order to the form
+             */
+            function addVehicleOrder() {
+                // Hide empty message
+                emptyOrdersMessage.classList.add('hidden');
+                
+                // Create a new order from template
+                const template = document.getElementById('vehicleOrderTemplate');
+                const orderNode = document.importNode(template.content, true);
+                
+                // Set order number
+                orderCount++;
+                orderNode.querySelector('.order-number').textContent = `Order #${orderCount}`;
+                
+                // Add event listeners to the new order
+                const orderCard = orderNode.querySelector('.order-card');
+                const toggleBtn = orderNode.querySelector('.toggle-order-btn');
+                const removeBtn = orderNode.querySelector('.remove-order-btn');
+                const details = orderNode.querySelector('.order-details');
+                const vehicleModelInput = orderNode.querySelector('.vehicle-model');
+                const vehiclePriceInput = orderNode.querySelector('.vehicle-price');
+                
+                // Set data attributes for order identification
+                orderCard.dataset.orderId = orderCount;
+                
+                // Setup toggle functionality
+                toggleBtn.addEventListener('click', function() {
+                    details.classList.toggle('hidden');
+                    // Switch icon
+                    const svg = toggleBtn.querySelector('svg');
+                    if (details.classList.contains('hidden')) {
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />';
+                    } else {
+                        svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />';
+                    }
+                });
+                
+                // Setup remove functionality
+                removeBtn.addEventListener('click', function() {
+                    orderCard.remove();
+                    updateSummary();
+                    updateTimeline();
+                    
+                    // Show empty message if no orders left
+                    if (vehicleOrdersContainer.querySelectorAll('.order-card').length === 0) {
+                        emptyOrdersMessage.classList.remove('hidden');
+                    }
+                });
+                
+                // Initialize multiple locations functionality
+                initializeMultipleLocations(orderCard);
+                
+                // Update summary when vehicle info changes
+                vehicleModelInput.addEventListener('input', function() {
+                    updateOrderSummary(orderCard);
+                });
+                
+                vehiclePriceInput.addEventListener('input', function() {
+                    updateOrderSummary(orderCard);
+                    updateSummary();
+                });
+                
+                // Add the new order to the container
+                vehicleOrdersContainer.appendChild(orderCard);
+                
+                // Hide empty timeline message
+                emptyTimelineMessage.classList.add('hidden');
+            }
+            
+            /**
+             * Initialize the multiple pickup/delivery functionality for an order
+             */
+            function initializeMultipleLocations(orderCard) {
+                const addPickupBtn = orderCard.querySelector('.add-pickup-btn');
+                const addDeliveryBtn = orderCard.querySelector('.add-delivery-btn');
+                const pickupLocations = orderCard.querySelector('.pickup-locations');
+                const deliveryLocations = orderCard.querySelector('.delivery-locations');
+                
+                // Add event listeners for adding locations
+                addPickupBtn.addEventListener('click', function() {
+                    addLocationItem(pickupLocations, 'pickup');
+                });
+                
+                addDeliveryBtn.addEventListener('click', function() {
+                    addLocationItem(deliveryLocations, 'delivery');
+                });
+                
+                // Add remove buttons to initial locations
+                setupLocationRemoveButtons(pickupLocations.querySelector('.pickup-location-item'));
+                setupLocationRemoveButtons(deliveryLocations.querySelector('.delivery-location-item'));
+                
+                // Setup geocoding for initial locations
+                setupAddressGeocoding(pickupLocations.querySelector('.pickup-location'), orderCard);
+                setupAddressGeocoding(deliveryLocations.querySelector('.delivery-location'), orderCard);
+            }
+    
+            /**
+             * Add a new location item (pickup or delivery)
+             */
+            function addLocationItem(container, type) {
+                const template = document.getElementById('locationItemTemplate');
+                const locationNode = document.importNode(template.content, true);
+                const locationItem = locationNode.querySelector('.location-item');
+                const locationInput = locationNode.querySelector('.location-input');
+                
+                // Set the correct class for the input
+                locationInput.classList.add(type === 'pickup' ? 'pickup-location' : 'delivery-location');
+                locationItem.classList.add(type === 'pickup' ? 'pickup-location-item' : 'delivery-location-item');
+                
+                // Setup remove button
+                setupLocationRemoveButtons(locationItem);
+                
+                // Add to container
+                container.appendChild(locationNode);
+                
+                // Setup geocoding
+                const orderCard = container.closest('.order-card');
+                setupAddressGeocoding(locationInput, orderCard);
+                
+                // Show remove button on the first location if we now have more than one
+                const firstLocation = container.querySelector(type === 'pickup' ? '.pickup-location-item' : '.delivery-location-item');
+                const removeBtn = firstLocation.querySelector('.remove-location-btn');
+                if (container.querySelectorAll(type === 'pickup' ? '.pickup-location-item' : '.delivery-location-item').length > 1) {
+                    removeBtn.classList.remove('hidden');
+                }
+            }
+    
+            /**
+             * Setup the remove button for a location item
+             */
+            function setupLocationRemoveButtons(locationItem) {
+                const removeBtn = locationItem.querySelector('.remove-location-btn');
+                
+                removeBtn.addEventListener('click', function() {
+                    const container = locationItem.parentNode;
+                    locationItem.remove();
+                    
+                    // Hide remove button on the first location if we now have only one
+                    if (container.children.length === 1) {
+                        const firstLocation = container.children[0];
+                        const removeBtn = firstLocation.querySelector('.remove-location-btn');
+                        removeBtn.classList.add('hidden');
+                    }
+                    
+                    // Update the order summary and map
+                    const orderCard = container.closest('.order-card');
+                    updateOrderSummary(orderCard);
+                    updateTimeline();
+                    updateMapRoute();
+                });
+            }
+    
+            /**
+             * Setup geocoding for an address input
+             */
+            function setupAddressGeocoding(input, orderCard) {
+                input.addEventListener('blur', function() {
+                    if (input.value.trim()) {
+                        geocodeAddress(input.value, function(result) {
+                            if (result) {
+                                // Store geocoded data
+                                input.dataset.lat = result.lat;
+                                input.dataset.lng = result.lng;
+                                input.dataset.formatted = result.formatted;
+                                
+                                // Update order summary
+                                updateOrderSummary(orderCard);
+                                updateTimeline();
+                                updateMapRoute();
+                            }
+                        });
+                    }
+                });
+            }
+            
+            /**
+             * Update the summary text for a specific order
+             */
+            function updateOrderSummary(orderCard) {
+                const vehicleModel = orderCard.querySelector('.vehicle-model').value;
+                const price = orderCard.querySelector('.vehicle-price').value;
+                const summary = orderCard.querySelector('.order-summary');
+                
+                if (vehicleModel && price) {
+                    summary.textContent = `${vehicleModel} - $${parseFloat(price).toFixed(2)}`;
+                } else if (vehicleModel) {
+                    summary.textContent = vehicleModel;
+                } else if (price) {
+                    summary.textContent = `$${parseFloat(price).toFixed(2)}`;
+                } else {
+                    summary.textContent = 'New Order';
+                }
+            }
+            
+            /**
+             * Renumber orders after reordering
+             */
+            function renumberOrders() {
+                const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+                orders.forEach((order, index) => {
+                    const orderNumber = index + 1;
+                    order.querySelector('.order-number').textContent = `Order #${orderNumber}`;
+                });
+            }
+            
+            /**
+             * Update the financial summary and map
+             */
+            function updateSummary() {
+                let totalRevenue = 0;
+                let totalVehicles = 0;
+                
+                // Calculate totals from orders
+                const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+                orders.forEach(order => {
+                    const priceInput = order.querySelector('.vehicle-price');
+                    if (priceInput && priceInput.value) {
+                        totalRevenue += parseFloat(priceInput.value);
+                        totalVehicles++;
+                    }
+                });
+                
+                // Get route distance from map (or placeholder)
+                const distance = 100; // This would be replaced with actual distance from the map API
+                
+                // Update summary elements
+                totalRevenueElement.textContent = `$${totalRevenue.toFixed(2)}`;
+                totalVehiclesElement.textContent = totalVehicles;
+                totalStopsElement.textContent = orders.length * 2; // Each order has pickup and delivery
+                
+                // Calculate revenue per mile
+                if (distance > 0) {
+                    const revenuePerMile = totalRevenue / distance;
+                    revenuePerMileElement.textContent = `$${revenuePerMile.toFixed(2)}`;
+                    totalDistanceElement.textContent = `${distance} miles`;
+                } else {
+                    revenuePerMileElement.textContent = '$0.00';
+                    totalDistanceElement.textContent = '0 miles';
+                }
+                
+                // Estimated duration (placeholder)
+                totalDurationElement.textContent = '0 min';
+            }
+            
+            /**
+             * Update the route timeline
+             */
+            function updateTimeline() {
+                // Clear existing timeline
+                while (routeTimeline.querySelector('.timeline-item')) {
+                    routeTimeline.querySelector('.timeline-item').remove();
+                }
+                
+                const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+                if (orders.length === 0) {
+                    emptyTimelineMessage.classList.remove('hidden');
+                    return;
+                }
+                
+                emptyTimelineMessage.classList.add('hidden');
+                
+                // Create combined array of stops (pickup + delivery)
+                let stopIndex = 1;
+                orders.forEach(order => {
+                    const orderNumber = order.querySelector('.order-number').textContent.replace('Order #', '');
+                    const vehicleModel = order.querySelector('.vehicle-model').value || 'Vehicle';
+                    
+                    // Get all pickup locations
+                    const pickupInputs = order.querySelectorAll('.pickup-location');
+                    pickupInputs.forEach(input => {
+                        if (input.value) {
+                            addTimelineStop(stopIndex++, 'pickup', input.value, vehicleModel, orderNumber);
+                        }
+                    });
+                    
+                    // Get all delivery locations
+                    const deliveryInputs = order.querySelectorAll('.delivery-location');
+                    deliveryInputs.forEach(input => {
+                        if (input.value) {
+                            addTimelineStop(stopIndex++, 'delivery', input.value, vehicleModel, orderNumber);
+                        }
+                    });
+                });
+            }
+            
+            /**
+             * Add a stop to the timeline
+             */
+            function addTimelineStop(index, type, address, vehicleModel, orderNumber) {
+                const template = document.getElementById('routeStopTemplate');
+                const stopNode = document.importNode(template.content, true);
+                
+                // Set stop data
+                const badge = stopNode.querySelector('.stop-badge');
+                const addressElement = stopNode.querySelector('.stop-address');
+                const detailsElement = stopNode.querySelector('.stop-details');
+                const sequenceElement = stopNode.querySelector('.stop-sequence');
+                const googleLink = stopNode.querySelector('.google-maps-link');
+                const appleLink = stopNode.querySelector('.apple-maps-link');
+                
+                // Set badge type (pickup/delivery)
+                if (type === 'pickup') {
+                    badge.textContent = 'P';
+                    badge.classList.add('pickup-badge');
+                    detailsElement.textContent = `Pickup: ${vehicleModel}`;
+                } else {
+                    badge.textContent = 'D';
+                    badge.classList.remove('pickup-badge');
+                    badge.classList.add('delivery-badge');
+                    detailsElement.textContent = `Delivery: ${vehicleModel}`;
+                }
+                
+                addressElement.textContent = address;
+                sequenceElement.textContent = `Stop #${index}`;
+                
+                // Set map links
+                const encodedAddress = encodeURIComponent(address);
+                googleLink.href = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+                appleLink.href = `https://maps.apple.com/?q=${encodedAddress}`;
+                
+                // Add move up/down functionality
+                const moveUpBtn = stopNode.querySelector('.move-up-btn');
+                const moveDownBtn = stopNode.querySelector('.move-down-btn');
+                
+                moveUpBtn.addEventListener('click', function() {
+                    // Implementation would be added here if needed
+                    // For now, we'll use drag and drop for reordering
+                });
+                
+                moveDownBtn.addEventListener('click', function() {
+                    // Implementation would be added here if needed
+                    // For now, we'll use drag and drop for reordering
+                });
+                
+                // Add to timeline
+                routeTimeline.appendChild(stopNode);
+            }
+            
+            /**
+             * Initialize the map
+             */
+            function initMap() {
+                // Create map
+                map = L.map('map').setView([39.8283, -98.5795], 4); // Center on USA
+                
+                // Add tile layer (OpenStreetMap)
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+            }
+            
+            /**
+             * Update the route on the map
+             */
+            function updateMapRoute() {
+                // Clear existing markers and route
+                mapMarkers.forEach(marker => map.removeLayer(marker));
+                mapMarkers = [];
+                
+                if (mapRoute) {
+                    map.removeLayer(mapRoute);
+                    mapRoute = null;
+                }
+                
+                // Collect all addresses with coordinates
+                const stops = [];
+                const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+                
+                orders.forEach(order => {
+                    const vehicleModel = order.querySelector('.vehicle-model').value || 'Vehicle';
+                    
+                    // Get all pickup locations
+                    const pickupInputs = order.querySelectorAll('.pickup-location');
+                    pickupInputs.forEach(input => {
+                        if (input.dataset.lat && input.dataset.lng) {
+                            stops.push({
+                                type: 'pickup',
+                                lat: parseFloat(input.dataset.lat),
+                                lng: parseFloat(input.dataset.lng),
+                                address: input.value,
+                                vehicle: vehicleModel
+                            });
+                        }
+                    });
+                    
+                    // Get all delivery locations
+                    const deliveryInputs = order.querySelectorAll('.delivery-location');
+                    deliveryInputs.forEach(input => {
+                        if (input.dataset.lat && input.dataset.lng) {
+                            stops.push({
+                                type: 'delivery',
+                                lat: parseFloat(input.dataset.lat),
+                                lng: parseFloat(input.dataset.lng),
+                                address: input.value,
+                                vehicle: vehicleModel
+                            });
+                        }
+                    });
+                });
+                
+                if (stops.length < 2) {
+                    return; // Need at least two stops for a route
+                }
+                
+                // Add markers for each stop
+                stops.forEach(stop => {
+                    const icon = L.divIcon({
+                        className: 'stop-marker-icon',
+                        html: `<div class="stop-badge ${stop.type === 'pickup' ? 'pickup-badge' : 'delivery-badge'}">${stop.type === 'pickup' ? 'P' : 'D'}</div>`,
+                        iconSize: [22, 22]
+                    });
+                    
+                    const marker = L.marker([stop.lat, stop.lng], { icon: icon }).addTo(map);
+                    marker.bindPopup(`<b>${stop.type === 'pickup' ? 'Pickup' : 'Delivery'}</b><br>${stop.vehicle}<br>${stop.address}`);
+                    mapMarkers.push(marker);
+                });
+                
+                // Fit map to markers
+                if (mapMarkers.length > 0) {
+                    const group = new L.featureGroup(mapMarkers);
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+                
+                // Create a simple polyline for now
+                // In a production app, you would use a routing API
+                const points = stops.map(stop => [stop.lat, stop.lng]);
+                mapRoute = L.polyline(points, { color: '#2563eb', weight: 4 }).addTo(map);
+                
+                // Update distance calculation
+                // This is a placeholder; in a real app you'd get actual distance from a routing API
+                let totalDistance = 0;
+                for (let i = 1; i < points.length; i++) {
+                    const from = L.latLng(points[i-1][0], points[i-1][1]);
+                    const to = L.latLng(points[i][0], points[i][1]);
+                    totalDistance += from.distanceTo(to);
+                }
+                
+                // Convert meters to miles
+                const distanceMiles = (totalDistance / 1609.34).toFixed(2);
+                totalDistanceElement.textContent = `${distanceMiles} miles`;
+                
+                // Update revenue per mile
+                const revenue = parseFloat(totalRevenueElement.textContent.replace('$', ''));
+                if (distanceMiles > 0) {
+                    const revenuePerMile = revenue / distanceMiles;
+                    revenuePerMileElement.textContent = `$${revenuePerMile.toFixed(2)}`;
+                }
+                
+                // Estimate duration (rough calculation)
+                const durationMinutes = Math.round(distanceMiles * 1.5); // Assuming average speed
+                totalDurationElement.textContent = `${durationMinutes} min`;
+            }
+            
+            /**
+             * Geocode an address to get coordinates
+             */
+            function geocodeAddress(address, callback) {
+                // In a real app, you would use a geocoding service API
+                // For this demo, we'll simulate it with random coordinates
+                
+                // Simulated geocoding response
+                setTimeout(() => {
+                    // Generate random coordinates near the US center
+                    const lat = 39.8283 + (Math.random() - 0.5) * 10;
+                    const lng = -98.5795 + (Math.random() - 0.5) * 20;
+                    
+                    callback({
+                        lat: lat,
+                        lng: lng,
+                        formatted: address
+                    });
+                }, 300);
+            }
+            
+            /**
+             * Optimize the route order
+             */
+            function optimizeRoute() {
+                const preference = routePreference.value;
+                
+                // Get all orders
+                const orders = Array.from(vehicleOrdersContainer.querySelectorAll('.order-card'));
+                
+                if (orders.length <= 1) {
+                    return; // Nothing to optimize
+                }
+                
+                switch (preference) {
+                    case 'pickupFirst':
+                        // Reorder to do all pickups first, then deliveries
+                        // Placeholder implementation
+                        break;
+                        
+                    case 'deliveryFirst':
+                        // Reorder to do all deliveries first, then pickups
+                        // Placeholder implementation
+                        break;
+                        
+                    case 'efficient':
+                        // For now, just simulate optimization with a delay
+                        // In a real app, you would use a proper algorithm
+                        optimizeRouteBtn.disabled = true;
+                        optimizeRouteBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Optimizing...';
+                    
+                    setTimeout(() => {
+                        // Shuffle the orders for demo purposes
+                        for (let i = orders.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            vehicleOrdersContainer.insertBefore(orders[j], orders[i]);
+                        }
+                        
+                        renumberOrders();
+                        updateTimeline();
+                        updateMapRoute();
+                        
+                        optimizeRouteBtn.disabled = false;
+                        optimizeRouteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> Optimize Route';
+                    }, 1000);
+                    break;
+                    
+                case 'custom':
+                    // Do nothing - let the user arrange manually
+                    break;
+            }
+        }
+        
+        /**
+         * Load drivers from the database
+         */
+        function loadDrivers() {
+            // In a real app, you would fetch this from the server
+            // For now, we'll add some sample drivers
+            const sampleDrivers = [
+                { id: 1, name: 'John Smith' },
+                { id: 2, name: 'Dave Johnson' },
+                { id: 3, name: 'Sarah Williams' }
+            ];
+            
+            // Clear existing options (except the default one)
+            while (driverSelect.options.length > 1) {
+                driverSelect.remove(1);
+            }
+            
+            // Add drivers to select
+            sampleDrivers.forEach(driver => {
+                const option = document.createElement('option');
+                option.value = driver.id;
+                option.textContent = driver.name;
+                driverSelect.appendChild(option);
+            });
+        }
+        
+        /**
+         * Handle form submission
+         */
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            
+            // Validate form
+            const routeName = document.getElementById('routeName').value.trim();
+            if (!routeName) {
+                alert('Please enter a route name');
+                return;
+            }
+            
+            const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+            if (orders.length === 0) {
+                alert('Please add at least one vehicle order');
+                return;
+            }
+            
+            // In a real app, you would submit this to the server
+            // For now, we'll simulate success
+            
+            // Display results
+            showRouteResults();
+        }
+        
+        /**
+         * Show route creation results
+         */
+        function showRouteResults() {
+            // Generate a fake share token
+            const token = Math.random().toString(36).substring(2, 12);
+            const shareUrl = `${window.location.origin}/driver-view.html?token=${token}`;
+            
+            // Set result values
+            shareLink.value = shareUrl;
+            
+            // Route details
+            routeDistance.textContent = totalDistanceElement.textContent;
+            routeTime.textContent = totalDurationElement.textContent;
+            routeVehicles.textContent = totalVehiclesElement.textContent;
+            
+            // Calculate expiration (24 hours from now)
+            const now = new Date();
+            const expires = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            routeExpires.textContent = expires.toLocaleString();
+            
+            // Financial summary
+            summaryRevenue.textContent = totalRevenueElement.textContent;
+            summaryRevenuePerMile.textContent = revenuePerMileElement.textContent + '/mile';
+            summaryVehicleCount.textContent = totalVehiclesElement.textContent;
+            
+            // Show results
+            routeResults.classList.remove('hidden');
+            routeForm.classList.add('hidden');
+            
+            // Scroll to results
+            routeResults.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        /**
+         * Copy share link to clipboard
+         */
+        function copyShareLink() {
+            shareLink.select();
+            document.execCommand('copy');
+            
+            // Show copied notification
+            copyLinkBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                copyLinkBtn.textContent = 'Copy Link';
+            }, 2000);
+        }
+    });
+  </script>
+</body>
+</html>

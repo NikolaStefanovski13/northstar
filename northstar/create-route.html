@@ -1590,6 +1590,111 @@
           });
       }
   });
+
+  /**
+ * Optimize the route order
+ */
+function optimizeRoute() {
+    const preference = routePreference.value;
+    
+    // Get all orders
+    const orders = Array.from(vehicleOrdersContainer.querySelectorAll('.order-card'));
+    
+    if (orders.length <= 1) {
+        return; // Nothing to optimize
+    }
+    
+    switch (preference) {
+        case 'pickupFirst':
+            // Show loading state
+            optimizeRouteBtn.disabled = true;
+            optimizeRouteBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Optimizing...';
+            
+            setTimeout(() => {
+                // Collect all orders with pickup locations
+                const ordersWithStops = orders.map(order => {
+                    const pickupCount = order.querySelectorAll('.pickup-location').length;
+                    return { element: order, pickupCount: pickupCount };
+                });
+                
+                // Sort orders by pickup count (descending)
+                ordersWithStops.sort((a, b) => b.pickupCount - a.pickupCount);
+                
+                // Reorder in the DOM
+                ordersWithStops.forEach(order => {
+                    vehicleOrdersContainer.appendChild(order.element);
+                });
+                
+                // Update UI
+                renumberOrders();
+                updateTimeline();
+                updateMapRoute();
+                
+                // Reset button
+                optimizeRouteBtn.disabled = false;
+                optimizeRouteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> Optimize Route';
+            }, 1000);
+            break;
+            
+        case 'deliveryFirst':
+            // Show loading state
+            optimizeRouteBtn.disabled = true;
+            optimizeRouteBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Optimizing...';
+            
+            setTimeout(() => {
+                // Collect all orders with delivery locations
+                const ordersWithStops = orders.map(order => {
+                    const deliveryCount = order.querySelectorAll('.delivery-location').length;
+                    return { element: order, deliveryCount: deliveryCount };
+                });
+                
+                // Sort orders by delivery count (descending)
+                ordersWithStops.sort((a, b) => b.deliveryCount - a.deliveryCount);
+                
+                // Reorder in the DOM
+                ordersWithStops.forEach(order => {
+                    vehicleOrdersContainer.appendChild(order.element);
+                });
+                
+                // Update UI
+                renumberOrders();
+                updateTimeline();
+                updateMapRoute();
+                
+                // Reset button
+                optimizeRouteBtn.disabled = false;
+                optimizeRouteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> Optimize Route';
+            }, 1000);
+            break;
+            
+        case 'efficient':
+            // For now, just simulate optimization with a delay
+            // In a real app, you would use a proper algorithm
+            optimizeRouteBtn.disabled = true;
+            optimizeRouteBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Optimizing...';
+            
+            setTimeout(() => {
+                // Shuffle the orders for demo purposes
+                for (let i = orders.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    vehicleOrdersContainer.insertBefore(orders[j], orders[i]);
+                }
+                
+                renumberOrders();
+                updateTimeline();
+                updateMapRoute();
+                
+                optimizeRouteBtn.disabled = false;
+                optimizeRouteBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg> Optimize Route';
+            }, 1000);
+            break;
+            
+        case 'custom':
+            // Do nothing - let the user arrange manually
+            break;
+    }
+}
+
 </script>
 </body>
 </html>

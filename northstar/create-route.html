@@ -1183,178 +1183,181 @@
               routeTimeline.appendChild(stopNode);
           }
           
-          /**
-           * Initialize the map
-           */
-          function initMap() {
-              // Create map
-              map = L.map('map').setView([39.8283, -98.5795], 4); // Center on USA
-              
-              // Add tile layer (OpenStreetMap)
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              }).addTo(map);
-              
-              // Add geocoder control to map
-              if (L.Control.Geocoder) {
-                  L.Control.geocoder({
-                      defaultMarkGeocode: false
-                  }).on('markgeocode', function(e) {
-                      if (mapRoute) {
-                          map.removeLayer(mapRoute);
-                          mapRoute = null;
-                      }
-                      map.setView(e.geocode.center, 13);
-                  }).addTo(map);
-              }
-          }
-          
-          /**
-           * Update the route on the map
-           */
-          function updateMapRoute() {
-              // Clear existing markers and route
-              mapMarkers.forEach(marker => map.removeLayer(marker));
-              mapMarkers = [];
-              
-              if (mapRoute) {
-                  map.removeLayer(mapRoute);
-                  mapRoute = null;
-              }
-              
-              // Collect all addresses with coordinates
-              const stops = [];
-              const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
-              
-              orders.forEach(order => {
-                  const vehicleModel = order.querySelector('.vehicle-model').value || 'Vehicle';
-                  
-                  // Get all pickup locations
-                  const pickupInputs = order.querySelectorAll('.pickup-location');
-                  pickupInputs.forEach(input => {
-                      if (input.dataset.lat && input.dataset.lng) {
-                          stops.push({
-                              type: 'pickup',
-                              lat: parseFloat(input.dataset.lat),
-                              lng: parseFloat(input.dataset.lng),
-                              address: input.value,
-                              vehicle: vehicleModel
-                          });
-                      }
-                  });
-                  
-                  // Get all delivery locations
-                  const deliveryInputs = order.querySelectorAll('.delivery-location');
-                  deliveryInputs.forEach(input => {
-                      if (input.dataset.lat && input.dataset.lng) {
-                          stops.push({
-                              type: 'delivery',
-                              lat: parseFloat(input.dataset.lat),
-                              lng: parseFloat(input.dataset.lng),
-                              address: input.value,
-                              vehicle: vehicleModel
-                          });
-                      }
-                  });
-              });
-              
-              if (stops.length < 2) {
-                  return; // Need at least two stops for a route
-              }
-              
-              // Add markers for each stop
-              stops.forEach(stop => {
-                  const icon = L.divIcon({
-                      className: 'stop-marker-icon',
-                      html: `<div class="stop-badge ${stop.type === 'pickup' ? 'pickup-badge' : 'delivery-badge'}">${stop.type === 'pickup' ? 'P' : 'D'}</div>`,
-                      iconSize: [22, 22]
-                  });
-                  
-                  const marker = L.marker([stop.lat, stop.lng], { icon: icon }).addTo(map);
-                  marker.bindPopup(`<b>${stop.type === 'pickup' ? 'Pickup' : 'Delivery'}</b><br>${stop.vehicle}<br>${stop.address}`);
-                  mapMarkers.push(marker);
-              });
-              
-              // Fit map to markers
-              if (mapMarkers.length > 0) {
-                  const group = new L.featureGroup(mapMarkers);
-                  map.fitBounds(group.getBounds().pad(0.1));
-              }
-              
-              // Create a simple polyline for now
-              // In a production app, you would use a routing API
-              const points = stops.map(stop => [stop.lat, stop.lng]);
-              mapRoute = L.polyline(points, { color: '#2563eb', weight: 4 }).addTo(map);
-              
-              // Update distance calculation
-              // This is a placeholder; in a real app you'd get actual distance from a routing API
-              let totalDistance = 0;
-              for (let i = 1; i < points.length; i++) {
-                  const from = L.latLng(points[i-1][0], points[i-1][1]);
-                  const to = L.latLng(points[i][0], points[i][1]);
-                  totalDistance += from.distanceTo(to);
-              }
-              
-              // Convert meters to miles
-              const distanceMiles = (totalDistance / 1609.34).toFixed(2);
-              totalDistanceElement.textContent = `${distanceMiles} miles`;
-              
-              // Update revenue per mile
-              const revenue = parseFloat(totalRevenueElement.textContent.replace('$', ''));
-              if (distanceMiles > 0) {
-                  const revenuePerMile = revenue / distanceMiles;
-                  revenuePerMileElement.textContent = `$${revenuePerMile.toFixed(2)}`;
-              }
-              
-              // Estimate duration (rough calculation)
-              const durationMinutes = Math.round(distanceMiles * 1.5); // Assuming average speed
-              totalDurationElement.textContent = `${durationMinutes} min`;
-          }
-          
-          /**
-           * Geocode an address to get coordinates
-           */
-          function geocodeAddress(address, callback) {
-              // If we have the Leaflet Geocoder, use it
-              if (L.Control.Geocoder) {
-                  const geocoder = L.Control.Geocoder.nominatim();
-                  
-                  geocoder.geocode(address, function(results) {
-                      if (results && results.length > 0) {
-                          const result = results[0];
-                          callback({
-                              lat: result.center.lat,
-                              lng: result.center.lng,
-                              formatted: result.name
-                          });
-                      } else {
-                          // Fallback to simulated geocoding for demo
-                          simulateGeocoding(address, callback);
-                      }
-                  });
-              } else {
-                  // Fallback to simulated geocoding for demo
-                  simulateGeocoding(address, callback);
-              }
-          }
-          
-          /**
-           * Simulate geocoding (for demo purposes)
-           */
-          function simulateGeocoding(address, callback) {
-              // Simulated geocoding response
-              setTimeout(() => {
-                  // Generate random coordinates near the US center
-                  const lat = 39.8283 + (Math.random() - 0.5) * 10;
-                  const lng = -98.5795 + (Math.random() - 0.5) * 20;
-                  
-                  callback({
-                      lat: lat,
-                      lng: lng,
-                      formatted: address
-                  });
-              }, 300);
-          }
+         /**
+ * Initialize the map
+ */
+function initMap() {
+    // Create map using the enhanced map integration
+    map = window.MapIntegration.initializeMap('map');
+}
+
+/**
+ * Update the route on the map
+ */
+function updateMapRoute() {
+    // Clear existing markers and route if they exist
+    if (mapRoute) {
+        if (mapRoute.route) {
+            mapRoute.route.remove();
+        } else {
+            map.removeLayer(mapRoute);
+        }
+        mapMarkers.forEach(marker => map.removeLayer(marker));
+        mapMarkers = [];
+        mapRoute = null;
+    }
+    
+    // Collect all addresses with coordinates
+    const stops = [];
+    const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+    
+    orders.forEach(order => {
+        const vehicleModel = order.querySelector('.vehicle-model').value || 'Vehicle';
+        
+        // Get all pickup locations
+        const pickupInputs = order.querySelectorAll('.pickup-location');
+        pickupInputs.forEach(input => {
+            if (input.dataset.lat && input.dataset.lng) {
+                stops.push({
+                    type: 'pickup',
+                    lat: parseFloat(input.dataset.lat),
+                    lng: parseFloat(input.dataset.lng),
+                    address: input.value,
+                    vehicle: vehicleModel
+                });
+            }
+        });
+        
+        // Get all delivery locations
+        const deliveryInputs = order.querySelectorAll('.delivery-location');
+        deliveryInputs.forEach(input => {
+            if (input.dataset.lat && input.dataset.lng) {
+                stops.push({
+                    type: 'delivery',
+                    lat: parseFloat(input.dataset.lat),
+                    lng: parseFloat(input.dataset.lng),
+                    address: input.value,
+                    vehicle: vehicleModel
+                });
+            }
+        });
+    });
+    
+    if (stops.length < 2) {
+        return; // Need at least two stops for a route
+    }
+    
+    // Create route using the enhanced map integration
+    mapRoute = window.MapIntegration.createRoute(map, stops);
+    mapMarkers = mapRoute.markers;
+    
+    // Update distance and duration display
+    const distanceMiles = mapRoute.distance.toFixed(2);
+    totalDistanceElement.textContent = `${distanceMiles} miles`;
+    
+    // Update revenue per mile
+    const revenue = parseFloat(totalRevenueElement.textContent.replace('$', ''));
+    if (distanceMiles > 0) {
+        const revenuePerMile = revenue / distanceMiles;
+        revenuePerMileElement.textContent = `$${revenuePerMile.toFixed(2)}`;
+    }
+    
+    // Update estimated duration
+    totalDurationElement.textContent = `${mapRoute.duration} min`;
+}
+
+/**
+ * Geocode an address to get coordinates
+ */
+function geocodeAddress(address, callback) {
+    if (window.MapIntegration && window.MapIntegration.geocodeAddress) {
+        window.MapIntegration.geocodeAddress(address)
+            .then(result => {
+                callback(result);
+            })
+            .catch(error => {
+                console.error('Geocoding error:', error);
+                // Fallback to simulated geocoding if needed
+                simulateGeocoding(address, callback);
+            });
+    } else {
+        // Fallback to original implementation if MapIntegration is not available
+        if (L.Control.Geocoder) {
+            const geocoder = L.Control.Geocoder.nominatim();
+            
+            geocoder.geocode(address, function(results) {
+                if (results && results.length > 0) {
+                    const result = results[0];
+                    callback({
+                        lat: result.center.lat,
+                        lng: result.center.lng,
+                        formatted: result.name
+                    });
+                } else {
+                    // Fallback to simulated geocoding for demo
+                    simulateGeocoding(address, callback);
+                }
+            });
+        } else {
+            // Fallback to simulated geocoding for demo
+            simulateGeocoding(address, callback);
+        }
+    }
+}
+
+/**
+ * Simulate geocoding (for demo purposes)
+ */
+function simulateGeocoding(address, callback) {
+    console.warn('Using simulated geocoding for:', address);
+    // Simulated geocoding response
+    setTimeout(() => {
+        // Generate random coordinates near the US center
+        const lat = 39.8283 + (Math.random() - 0.5) * 10;
+        const lng = -98.5795 + (Math.random() - 0.5) * 20;
+        
+        callback({
+            address: address,
+            lat: lat,
+            lng: lng,
+            formatted: address
+        });
+    }, 300);
+}
+
+/**
+ * Setup geocoding for an address input
+ */
+function setupAddressGeocoding(input, orderCard) {
+    if (window.MapIntegration && window.MapIntegration.addAddressAutocomplete) {
+        // Add autocomplete to the input field
+        window.MapIntegration.addAddressAutocomplete(input, function(result) {
+            // Update order summary after an address is selected
+            updateOrderSummary(orderCard);
+            updateTimeline();
+            updateMapRoute();
+        });
+    } else {
+        // Fallback to original behavior
+        input.addEventListener('blur', function() {
+            if (input.value.trim()) {
+                geocodeAddress(input.value, function(result) {
+                    if (result) {
+                        // Store geocoded data
+                        input.dataset.lat = result.lat;
+                        input.dataset.lng = result.lng;
+                        input.dataset.formatted = result.formatted;
+                        
+                        // Update order summary
+                        updateOrderSummary(orderCard);
+                        updateTimeline();
+                        updateMapRoute();
+                    }
+                });
+            }
+        });
+    }
+}
           
           /**
          optimizeRouteBtn.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Optimizing...';

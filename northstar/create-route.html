@@ -1695,6 +1695,135 @@ function optimizeRoute() {
     }
 }
 
+// Key functions to update in your route-builder.js or inline script
+
+/**
+ * Initialize the map
+ */
+ function initMap() {
+    // Create map using the enhanced map integration
+    map = window.MapIntegration.initializeMap('map');
+}
+
+/**
+ * Setup geocoding for an address input
+ */
+function setupAddressGeocoding(input, orderCard) {
+    // Add autocomplete to the input field
+    window.MapIntegration.addAddressAutocomplete(input, function(result) {
+        // Update order summary after an address is selected
+        updateOrderSummary(orderCard);
+        updateTimeline();
+        updateMapRoute();
+    });
+}
+
+/**
+ * Update the route on the map
+ */
+function updateMapRoute() {
+    // Clear existing markers and route if they exist
+    if (mapRoute) {
+        mapRoute.route.remove();
+        mapMarkers.forEach(marker => marker.remove());
+        mapMarkers = [];
+        mapRoute = null;
+    }
+    
+    // Collect all addresses with coordinates
+    const stops = [];
+    const orders = vehicleOrdersContainer.querySelectorAll('.order-card');
+    
+    orders.forEach(order => {
+        const vehicleModel = order.querySelector('.vehicle-model').value || 'Vehicle';
+        
+        // Get all pickup locations
+        const pickupInputs = order.querySelectorAll('.pickup-location');
+        pickupInputs.forEach(input => {
+            if (input.dataset.lat && input.dataset.lng) {
+                stops.push({
+                    type: 'pickup',
+                    lat: parseFloat(input.dataset.lat),
+                    lng: parseFloat(input.dataset.lng),
+                    address: input.value,
+                    vehicle: vehicleModel
+                });
+            }
+        });
+        
+        // Get all delivery locations
+        const deliveryInputs = order.querySelectorAll('.delivery-location');
+        deliveryInputs.forEach(input => {
+            if (input.dataset.lat && input.dataset.lng) {
+                stops.push({
+                    type: 'delivery',
+                    lat: parseFloat(input.dataset.lat),
+                    lng: parseFloat(input.dataset.lng),
+                    address: input.value,
+                    vehicle: vehicleModel
+                });
+            }
+        });
+    });
+    
+    if (stops.length < 2) {
+        return; // Need at least two stops for a route
+    }
+    
+    // Create route using the enhanced map integration
+    mapRoute = window.MapIntegration.createRoute(map, stops);
+    mapMarkers = mapRoute.markers;
+    
+    // Update distance and duration display
+    const distanceMiles = mapRoute.distance.toFixed(2);
+    totalDistanceElement.textContent = `${distanceMiles} miles`;
+    
+    // Update revenue per mile
+    const revenue = parseFloat(totalRevenueElement.textContent.replace('$', ''));
+    if (distanceMiles > 0) {
+        const revenuePerMile = revenue / distanceMiles;
+        revenuePerMileElement.textContent = `$${revenuePerMile.toFixed(2)}`;
+    }
+    
+    // Update estimated duration
+    totalDurationElement.textContent = `${mapRoute.duration} min`;
+}
+
+/**
+ * Geocode an address to get coordinates
+ * This can be used as a fallback if the autocomplete isn't used
+ */
+function geocodeAddress(address, callback) {
+    window.MapIntegration.geocodeAddress(address)
+        .then(result => {
+            callback(result);
+        })
+        .catch(error => {
+            console.error('Geocoding error:', error);
+            // Fallback to simulated geocoding if needed
+            simulateGeocoding(address, callback);
+        });
+}
+
+/**
+ * Simulate geocoding (for demo purposes)
+ */
+function simulateGeocoding(address, callback) {
+    console.warn('Using simulated geocoding for:', address);
+    // Simulated geocoding response
+    setTimeout(() => {
+        // Generate random coordinates near the US center
+        const lat = 39.8283 + (Math.random() - 0.5) * 10;
+        const lng = -98.5795 + (Math.random() - 0.5) * 20;
+        
+        callback({
+            address: address,
+            lat: lat,
+            lng: lng
+        });
+    }, 300);
+}
+
 </script>
 </body>
 </html>
